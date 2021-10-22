@@ -406,3 +406,95 @@ jobs:
           asset_path: './dist/MysteriumVPN Setup ${{ steps.version.outputs.tag }}.exe'
           asset_name: MysteriumVPN-Setup-${{ steps.version.outputs.tag }}.exe
           asset_content_type: application/octet-stream
+
+  app-android:
+    # All used xgomobile image for compile (storage intensive)
+    runs-on: ${{ matrix.os }}
+
+    env:
+      ANDROID_COMPILE_SDK: "29"
+      NDK_VERSION: "21.4.7075529"
+      ANDROID_BUILD_TOOLS: "30.0.3"
+      ANDROID_HOME: "/android-sdk"
+
+    strategy:
+      matrix:
+        os: [ubuntu-20.04]
+
+    steps:
+      - uses: oprypin/find-latest-tag@v1
+        with:
+          repository: mysteriumnetwork/mysterium-vpn-mobile
+          # releases-only: false  # This repository doesn't use GitHub's "release" feature.
+          # prefix: 'test-7.'  # Other kinds of tags are irrelevant; also limit to major version 7.
+        id: version
+
+      - name: get last build version
+        id: hash
+        run: |
+          a=`curl -s -N https://api.github.com/repos/mysteriumnetwork/mysterium-vpn-mobile/commits/mainnet | egrep -o -m 1 'sha\": \"(.{40})' | sed 's/sha\": \"//' | head -c 8`
+          echo "::set-output name=hash::$(echo $a)\n"
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'mysteriumnetwork/mysterium-vpn-mobile'
+          ref: 'master'
+
+      - uses: actions/setup-java@v2
+        with: 
+          distribution: 'zulu' 
+          java-version: '11'
+
+      - uses: android-actions/setup-android@v2
+
+      - name: setup envs
+        run: |
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/cmdline-tools/tools/bin
+          export PATH=$PATH:$ANDROID_HOME/platform-tools
+
+      - name: setup tools
+        run: |
+          sudo apt-get --quiet update --yes
+          sudo apt-get --quiet install --yes wget tar unzip lib32stdc++6 lib32z1 build-essential ruby ruby-dev
+          sudo apt-get --quiet install --yes vim-common
+          wget --quiet --output-document=android-commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-linux-7302050_latest.zip
+          sudo mkdir -p $ANDROID_HOME/cmdline-tools
+          sudo unzip -q android-commandlinetools.zip -d "$ANDROID_HOME/cmdline-tools"
+          sudo mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/tools
+          sudo gem install bundler
+
+      - name: setup android
+        run: |
+          yes | sdkmanager --licenses
+          yes | sdkmanager --install "platforms;android-${{env.ANDROID_COMPILE_SDK}}"
+          yes | sdkmanager --install "platform-tools"
+          yes | sdkmanager --install "build-tools;${{env.ANDROID_BUILD_TOOLS}}"
+          yes | sdkmanager --install "extras;android;m2repository"
+          yes | sdkmanager --install "extras;google;m2repository"
+          yes | sdkmanager --install "extras;google;google_play_services"
+          yes | sdkmanager --install "ndk;${{env.NDK_VERSION}}"
+          bundle install
+          echo "${{secrets.FASTLANE_ANDROID_SIGNING_FILE_VALUE}}" | base64 --decode > "${{secrets.FASTLANE_ANDROID_SIGNING_FILE_PATH}}"
+          echo "${{secrets.FASTLANE_ANDROID_SECRET_JSON_VALUE}}" | base64 --decode > "${{secrets.FASTLANE_ANDROID_SECRET_JSON_PATH}}"
+          echo "${{secrets.GOOGLE_SERVICES_VALUE}}" | base64 --decode > "${{secrets.GOOGLE_SERVICES_PATH}}"
+
+      - name: build apk
+        continue-on-error: true
+        run: |
+          bundle exec fastlane internal
+          bundle exec fastlane build
+
+      - name: upload Node Android artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./android/app/build/outputs/apk/release/app-release.apk
+          asset_name: myst-${{steps.version.outputs.version}}-${{steps.hash.outputs.hash}}.apk
+          asset_content_type: application/octet-stream
+
+
+
+   
