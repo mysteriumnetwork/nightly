@@ -1,0 +1,408 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  node-android:
+    # All used xgomobile image for compile (storage intensive)
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-20.04]
+
+    steps:
+      - name: install build tools
+        run: |
+          sudo apt-get install -y ruby-dev build-essential && sudo rm -rf /var/cache/apt/* /var/lib/apt/lists/* && sudo gem install ffi -v 1.10.0 && sudo gem install fpm -v 1.11.0
+
+      - uses: oprypin/find-latest-tag@v1
+        with:
+          repository: mysteriumnetwork/node
+          # releases-only: false  # This repository doesn't use GitHub's "release" feature.
+          # prefix: 'test-7.'  # Other kinds of tags are irrelevant; also limit to major version 7.
+        id: version
+
+      - name: get last build version
+        id: hash
+        run: |
+          a=`curl -s -N https://api.github.com/repos/mysteriumnetwork/node/commits/mainnet | egrep -o -m 1 'sha\": \"(.{40})' | sed 's/sha\": \"//' | head -c 8`
+          echo "::set-output name=hash::$(echo $a)\n"
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'mysteriumnetwork/node'
+          ref: 'mainnet'
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.17.0'
+
+      - name: build android
+        run: BUILD_VERSION=${{steps.version.outputs.tag}}-${{steps.hash.outputs.hash}} go run mage.go -v PackageAndroid
+        continue-on-error: true
+
+      - name: upload Node Android artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: false
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/Mysterium.aar
+          asset_name: Mysterium.aar
+          asset_content_type: application/octet-stream
+
+      - name: upload Node Android artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/mvn.pom
+          asset_name: mvn.pom
+          asset_content_type: application/octet-stream   
+
+      - name: upload Node Android artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/Mysterium-sources.jar
+          asset_name: Mysterium-sources.jar
+          asset_content_type: application/octet-stream
+
+  node-win-mac-ios-pi:
+    # All used xgo image for compile (storage intensive)
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-20.04]
+
+    steps:
+      - name: install build tools
+        run: |
+          sudo apt-get install -y ruby-dev build-essential && sudo rm -rf /var/cache/apt/* /var/lib/apt/lists/* && sudo gem install ffi -v 1.10.0 && sudo gem install fpm -v 1.11.0
+
+      - uses: oprypin/find-latest-tag@v1
+        with:
+          repository: mysteriumnetwork/node
+          # releases-only: false  # This repository doesn't use GitHub's "release" feature.
+          # prefix: 'test-7.'  # Other kinds of tags are irrelevant; also limit to major version 7.
+        id: version
+
+      - name: get last build version
+        id: hash
+        run: |
+          a=`curl -s -N https://api.github.com/repos/mysteriumnetwork/node/commits/mainnet | egrep -o -m 1 'sha\": \"(.{40})' | sed 's/sha\": \"//' | head -c 8`
+          echo "::set-output name=hash::$(echo $a)\n"
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'mysteriumnetwork/node'
+          ref: 'mainnet'
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.17.0'
+
+      - name: build macos x86_64
+        run: BUILD_VERSION=${{steps.version.outputs.tag}}-${{steps.hash.outputs.hash}} go run mage.go -v PackageMacOSAmd64
+        continue-on-error: true
+
+      - name: upload Node Darwin x86_64 artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/myst_darwin_amd64.tar.gz
+          asset_name: myst_darwin_amd64.tar.gz
+          asset_content_type: application/octet-stream
+
+      - name: clean
+        run: sudo rm -rf ./build  
+
+      - name: build win x86_64
+        run: BUILD_VERSION=${{steps.version.outputs.tag}}-${{steps.hash.outputs.hash}} go run mage.go -v PackageWindowsAmd64
+        continue-on-error: true
+
+      - name: upload Node Windows x86_64 artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/myst_windows_amd64.zip
+          asset_name: myst_windows_amd64.zip
+          asset_content_type: application/octet-stream
+
+      - name: clean
+        run: sudo rm -rf ./build
+
+      - name: build linux rp
+        run: BUILD_VERSION=${{steps.version.outputs.tag}}-${{steps.hash.outputs.hash}} go run mage.go -v PackageLinuxRaspberryImage
+        continue-on-error: true
+
+      - name: upload Node iOS artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/mystberry.zip
+          asset_name: mystberry.zip
+          asset_content_type: application/octet-stream
+
+      - name: upload Node Linux ArmHF artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/myst_linux_armhf.deb
+          asset_name: myst_linux_pi_armhf.deb
+          asset_content_type: application/octet-stream
+
+      # iOS not used right now
+      # - name: clean
+      #   run: sudo rm -rf ./build  
+
+      # - name: build ios
+      #   run: BUILD_VERSION=${{steps.version.outputs.tag}}-${{steps.hash.outputs.hash}} go run mage.go -v PackageIOS
+      #   continue-on-error: true
+
+      # - name: upload Node iOS artifact
+      #   uses: actions/upload-release-asset@v1
+      #   continue-on-error: true
+      #   env:
+      #     GITHUB_TOKEN: ${{ github.token }}
+      #   with:
+      #     upload_url: ${{ github.event.release.upload_url }}
+      #     asset_path: ./build/package/Mysterium.framework.zip
+      #     asset_name: Mysterium.framework.zip
+      #     asset_content_type: application/octet-stream      
+
+  node-linux:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-20.04]
+
+    steps:
+      - name: install build tools
+        run: |
+          sudo apt-get install -y ruby-dev build-essential && sudo rm -rf /var/cache/apt/* /var/lib/apt/lists/* && sudo gem install ffi -v 1.10.0 && sudo gem install fpm -v 1.11.0
+
+      - uses: oprypin/find-latest-tag@v1
+        with:
+          repository: mysteriumnetwork/node
+          # releases-only: false  # This repository doesn't use GitHub's "release" feature.
+          # prefix: 'test-7.'  # Other kinds of tags are irrelevant; also limit to major version 7.
+        id: version
+
+      - name: get last build version
+        id: hash
+        run: |
+          a=`curl -s -N https://api.github.com/repos/mysteriumnetwork/node/commits/mainnet | egrep -o -m 1 'sha\": \"(.{40})' | sed 's/sha\": \"//' | head -c 8`
+          echo "::set-output name=hash::$(echo $a)\n"
+
+      - uses: actions/checkout@v2
+        with:
+          repository: 'mysteriumnetwork/node'
+          ref: 'mainnet'
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.17.0'
+     
+      # - name: clean
+      #   run: |
+      #     sudo rm -rf ./build
+      #     sudo docker system prune -a --volumes
+     
+      - name: build linux x86_64
+        run: BUILD_VERSION=${{steps.version.outputs.tag}}-${{steps.hash.outputs.hash}} go run mage.go -v PackageLinuxAmd64
+        continue-on-error: true
+
+      - name: upload Node Linux x86_64 artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/myst_linux_amd64.tar.gz
+          asset_name: myst_linux_amd64.tar.gz
+          asset_content_type: application/octet-stream
+
+      - name: clean
+        run: sudo rm -rf ./build
+
+      - name: build linux Arm
+        run: BUILD_VERSION=${{steps.version.outputs.tag}}-${{steps.hash.outputs.hash}} go run mage.go -v PackageLinuxArm
+        continue-on-error: true
+
+      - name: upload Node Linux Arm artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/myst_linux_arm.tar.gz
+          asset_name: myst_linux_arm.tar.gz
+          asset_content_type: application/octet-stream
+
+      - name: clean
+        run: sudo rm -rf ./build
+
+      - name: build linux debian x86_64
+        run: BUILD_VERSION=${{steps.version.outputs.tag}}-${{steps.hash.outputs.hash}} go run mage.go -v PackageLinuxDebianAmd64
+        continue-on-error: true
+
+      - name: upload Node Linux Debian x86_64 artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/myst_linux_amd64.deb
+          asset_name: myst_linux_amd64.deb
+          asset_content_type: application/octet-stream
+
+      - name: clean
+        run: sudo rm -rf ./build
+
+      - name: build linux debian arm
+        run: BUILD_VERSION=${{steps.version.outputs.tag}}-${{steps.hash.outputs.hash}} go run mage.go -v PackageLinuxDebianArm
+        continue-on-error: true
+
+      - name: upload Node Linux ArmHF artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/myst_linux_armhf.deb
+          asset_name: myst_linux_armhf.deb
+          asset_content_type: application/octet-stream
+
+      - name: clean
+        run: sudo rm -rf ./build
+
+      - name: build linux debian arm64
+        run: BUILD_VERSION=${{steps.version.outputs.tag}}-${{steps.hash.outputs.hash}} go run mage.go -v PackageLinuxDebianArm64
+        continue-on-error: true
+
+      - name: upload Node Linux Debian Arm64 artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./build/package/myst_linux_arm64.deb
+          asset_name: myst_linux_arm64.deb
+          asset_content_type: application/octet-stream        
+
+
+  desktop-release:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ windows-2019, ubuntu-20.04] #macos-10.15,
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          repository: 'mysteriumnetwork/mysterium-vpn-desktop'
+          ref: 'master'
+          token: ${{ secrets.github_token }}
+      - uses: actions/setup-node@v1
+        with:
+          node-version: 14
+      - run: yarn
+      - uses: oprypin/find-latest-tag@v1
+        with:
+          repository: mysteriumnetwork/mysterium-vpn-desktop
+          # releases-only: false  # This repository doesn't use GitHub's "release" feature.
+          # prefix: 'test-7.'  # Other kinds of tags are irrelevant; also limit to major version 7.
+        id: version
+      - name: Replace version
+        run: yarn version --no-git-tag-version --new-version v${{ steps.version.outputs.tag }}
+      - name: Install rpmbuild
+        run: sudo apt install -y rpm
+        # Only install rpmbuild on Ubuntu
+        if: startsWith(matrix.os, 'ubuntu')
+      - name: Bundle & release
+        uses: samuelmeuli/action-electron-builder@v1
+        continue-on-error: true
+        with:
+          build_script_name: "build"
+          release: false
+          github_token: ${{ secrets.github_token }}
+          # macOS code signing certificate
+          mac_certs: ${{ secrets.mac_certs }}
+          mac_certs_password: ${{ secrets.mac_certs_password }}
+          # Windows code signing certificate
+          windows_certs: ${{ secrets.windows_certs }}
+          windows_certs_password: ${{ secrets.windows_certs_password }}
+        env:
+          APPLEID: ${{ secrets.APPLEID }}
+          APPLEIDPASS: ${{ secrets.APPLEIDPASS }}
+
+      - name: upload desktop VPN RPM artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./dist/mysterium-vpn-desktop-${{ steps.version.outputs.tag }}.x86_64.rpm
+          asset_name: mysterium-vpn-desktop-${{ steps.version.outputs.tag }}.x86_64.rpm
+          asset_content_type: application/octet-stream
+
+      - name: upload desktop VPN DEB artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./dist/mysterium-vpn-desktop_${{ steps.version.outputs.tag }}_amd64.deb
+          asset_name: mysterium-vpn-desktop_${{ steps.version.outputs.tag }}_amd64.deb
+          asset_content_type: application/octet-stream
+
+      - name: upload desktop VPN DMG artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./dist/MysteriumVPN-${{ steps.version.outputs.tag }}.dmg
+          asset_name: MysteriumVPN-${{ steps.version.outputs.tag }}.dmg
+          asset_content_type: application/octet-stream
+
+      - name: upload desktop VPN EXE artifact
+        uses: actions/upload-release-asset@v1
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }}
+        with: 
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: './dist/MysteriumVPN Setup ${{ steps.version.outputs.tag }}.exe'
+          asset_name: MysteriumVPN-Setup-${{ steps.version.outputs.tag }}.exe
+          asset_content_type: application/octet-stream
