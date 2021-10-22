@@ -328,7 +328,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           repository: 'mysteriumnetwork/mysterium-vpn-desktop'
-          ref: 'master'
+          ref: 'mainnet'
           token: ${{ secrets.github_token }}
       - uses: actions/setup-node@v1
         with:
@@ -438,7 +438,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           repository: 'mysteriumnetwork/mysterium-vpn-mobile'
-          ref: 'master'
+          ref: 'mainnet'
 
       - uses: actions/setup-java@v2
         with: 
