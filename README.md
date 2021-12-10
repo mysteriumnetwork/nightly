@@ -1,6 +1,6 @@
-# Mysterium network nightly builds
+# Mysterium Network nightly builds
 
-This repository contains nigtly builds of Mysterium network.
+This repository contains nightly builds of Mysterium Network.
 Stable releases can be found here: 
 
 1) Node - https://github.com/mysteriumnetwork/node/releases
